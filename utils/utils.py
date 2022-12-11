@@ -22,6 +22,9 @@ def train_log(loss, example_ct, epoch):
     wandb.log({"epoch": epoch, "loss": loss}, step=example_ct)
     print(f"Loss after {str(example_ct).zfill(5)} examples: {loss:.3f}")
 
+def log_images(images, labels, preds):
+    wandb.log({"examples" : [wandb.Image(im, caption='True: {}, Pred: {}'.format(lab, torch.argmax(pred))) for im, lab, pred  in zip(images[:3], labels[:3], preds[:3])]})
+
 def train(model, loader, criterion, optimizer, config):
     # Tell wandb to watch what the model gets up to: gradients, weights, and more!
     wandb.watch(model, criterion, log="all", log_freq=10)
@@ -32,13 +35,14 @@ def train(model, loader, criterion, optimizer, config):
     batch_ct = 0
     for epoch in tqdm(range(config.epochs)):
         for _, (images, labels) in enumerate(loader):
-            loss = train_batch(images, labels, model, optimizer, criterion)
+            loss, preds = train_batch(images, labels, model, optimizer, criterion)
             example_ct +=  len(images)
             batch_ct += 1
 
             # Report metrics every 25th batch
             if ((batch_ct + 1) % 25) == 0:
                 train_log(loss, example_ct, epoch)
+                log_images(images, labels, preds)
 
 def test(model, test_loader):
     model.eval()
@@ -76,7 +80,7 @@ def train_batch(images, labels, model, optimizer, criterion):
     # Step with optimizer
     optimizer.step()
 
-    return loss
+    return loss, outputs
 
 class ConvNet(nn.Module):
     def __init__(self, kernels, classes=10):
@@ -137,7 +141,8 @@ def make(config):
 def model_pipeline(hyperparameters):
 
     # tell wandb to get started
-    with wandb.init(project="wandb-basics-lesson", entity='bradipo', config=hyperparameters):
+    with wandb.init(project=hyperparameters['project'], entity=hyperparameters['entity'], name=hyperparameters['name'], 
+                    config=hyperparameters):
       # access all HPs through wandb.config, so logging matches execution!
       config = wandb.config
 
